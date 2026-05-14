@@ -199,6 +199,18 @@ def load_all_data():
         pairing = loader.load_pairing_data()
         analysis = loader.load_analysis_data()
         country_stats = loader.load_country_stats()
+
+        # 确保关键列存在（修复 Streamlit Cloud 上的缓存问题）
+        if buyers is not None and isinstance(buyers, pd.DataFrame):
+            if '合作意向_final' not in buyers.columns:
+                buyers = buyers.copy()
+                if '参展届次' in buyers.columns:
+                    buyers['合作意向_final'] = buyers['参展届次'].apply(
+                        lambda s: '高意向（多届参展）' if pd.notna(s) and ';' in str(s) else '意向待定'
+                    )
+                else:
+                    buyers['合作意向_final'] = '意向待定'
+
         stats = loader.get_stats()
         return buyers, exhibitors, pairing, analysis, country_stats, stats
     except Exception as e:

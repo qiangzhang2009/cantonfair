@@ -433,9 +433,19 @@ class DataLoader:
         buyers = self.load_buyers()
         exhibitors = self.load_exhibitors()
 
-        # 无条件确保 buyers 有合作意向_final 列
-        if '合作意向_final' not in buyers.columns:
-            buyers['合作意向_final'] = '意向待定'
+        # 确保 buyers 是 DataFrame 并且有合作意向_final 列
+        if isinstance(buyers, pd.DataFrame) and len(buyers) > 0:
+            if '合作意向_final' not in buyers.columns:
+                buyers['合作意向_final'] = '意向待定'
+            # 也确保参展届次列存在
+            if '参展届次' not in buyers.columns:
+                buyers['参展届次'] = ''
+        elif isinstance(buyers, pd.DataFrame) and len(buyers) == 0:
+            buyers['合作意向_final'] = pd.Series(dtype=str)
+        else:
+            # buyers 不是 DataFrame，创建一个空的
+            buyers = pd.DataFrame({'合作意向_final': []})
+
         if buyers.empty:
             self._stats = {
                 'buyer_count': 0, 'exhibitor_count': 0,
