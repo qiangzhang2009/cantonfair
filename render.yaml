@@ -4,6 +4,8 @@ services:
     runtime: docker
     region: singapore
     plan: free
+    port: 8502
+    numInstances: 1
     dockerfilePath: ./cantonfair_system/Dockerfile
     dockerContext: ./cantonfair_system
     healthCheckPath: /_stcore/health
