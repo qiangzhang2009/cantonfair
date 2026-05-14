@@ -204,6 +204,21 @@ def load_all_data():
 def search_buyers(buyers_df, country=None, category=None, tier=None,
                   intent=None, has_contact=None, search_text=''):
     df = buyers_df.copy()
+
+    # 确保必要的衍生列存在
+    if '合作意向_final' not in df.columns:
+        if '参展届次' in df.columns:
+            def _infer_intent(s):
+                if pd.isna(s) or str(s).strip() == '':
+                    return '意向待定'
+                sessions = str(s)
+                if ';' in sessions:
+                    return '高意向（多届参展）'
+                return '一般意向'
+            df['合作意向_final'] = df['参展届次'].apply(_infer_intent)
+        else:
+            df['合作意向_final'] = '意向待定'
+
     if country and country != '全部':
         df = df[df['国家/地区'] == country]
     if category and category != '全部':
@@ -428,7 +443,8 @@ if page == "📊 数据总览":
         st.subheader("采购商意向与类型分析")
         col1, col2 = st.columns(2)
         with col1:
-            intent_dist = buyers['合作意向_final'].value_counts()
+            intent_col = buyers['合作意向_final'] if '合作意向_final' in buyers.columns else pd.Series(['意向待定'] * len(buyers))
+            intent_dist = intent_col.value_counts()
             fig_int = px.pie(
                 names=intent_dist.index, values=intent_dist.values,
                 hole=0.5, template='plotly_dark',
