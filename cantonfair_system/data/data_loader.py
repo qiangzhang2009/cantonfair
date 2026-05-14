@@ -1,5 +1,6 @@
 """
 数据加载与预处理层
+# VERSION: 2026-05-14-FORCE-REBUILD
 支持模式：
   1. Supabase (优先) — Serverless，查询下推到数据库
   2. 本地 Excel (回退) — 开发/本地调试用
