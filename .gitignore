@@ -1,0 +1,40 @@
+# 环境变量（凭证）
+.env
+.env.local
+.env.production
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# 数据文件
+*.xlsx
+*.xls
+*.csv
+*.parquet
+
+# 临时文件
+.DS_Store
+*.log
+*.tmp
+*.cache
+
+# IDE
+.vscode/settings.json
+.idea/
+
+# Git
+.git/
+.gitignore (but keep this file)
+
+# 进度/状态文件
+evolution_data.json
+outreach_data.json
+
+# 云平台
+railway.toml
+.render.yaml (will be created separately)

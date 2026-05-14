@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: cantonfair-pro
+    runtime: container
+    region: singapore
+    plan: free
+    dockerfilePath: ./cantonfair_system/Dockerfile
+    dockerContext: ./
+    healthCheckPath: /_stcore/health
+    envVars:
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET_NAME
+        value: cantonfair
+      - key: R2_DATA_FILE_KEY
+        value: 广交会数据综合整理_标准格式.xlsx
+      - key: SECRET_KEY
+        generateValue: true
+      - key: APP_NAME
+        value: CantonFair Pro
+      - key: LOG_LEVEL
+        value: INFO
