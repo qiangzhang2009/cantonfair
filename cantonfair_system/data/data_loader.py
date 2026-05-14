@@ -266,12 +266,12 @@ class DataLoader:
                     "⚠️ Supabase 密钥无效或已过期。请检查 Streamlit Cloud 的 Secrets 配置：\n"
                     "SUPABASE_URL、SUPABASE_KEY、SUPABASE_SERVICE_ROLE_KEY"
                 ) from e
-            if 'connection' in err_msg.lower() or 'timeout' in err_msg.lower():
+            if 'connection' in err_msg.lower() or 'timeout' in err_msg.lower() or 'network' in err_msg.lower():
                 raise Exception(
-                    "⚠️ 无法连接到 Supabase。请检查 SUPABASE_URL 是否正确。"
+                    "⚠️ 无法连接到 Supabase。请检查 SUPABASE_URL 是否正确，以及网络是否通畅。"
                 ) from e
+            # 未知错误也抛出，让调用方能感知
             raise Exception(f"Supabase 查询失败 ({table}): {e}") from e
-        return pd.DataFrame()
 
     def _load_buyers_supabase(self) -> pd.DataFrame:
         df = self._load_from_supabase('buyers')
