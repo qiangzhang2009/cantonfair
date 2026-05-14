@@ -190,15 +190,21 @@ def _render_auth():
 # ====== 缓存数据 ======
 @st.cache_data(ttl=3600)
 def load_all_data():
+    import traceback
     from data.data_loader import get_loader
-    loader = get_loader(DATA_FILE)
-    buyers = loader.load_buyers()
-    exhibitors = loader.load_exhibitors()
-    pairing = loader.load_pairing_data()
-    analysis = loader.load_analysis_data()
-    country_stats = loader.load_country_stats()
-    stats = loader.get_stats()
-    return buyers, exhibitors, pairing, analysis, country_stats, stats
+    try:
+        loader = get_loader(DATA_FILE)
+        buyers = loader.load_buyers()
+        exhibitors = loader.load_exhibitors()
+        pairing = loader.load_pairing_data()
+        analysis = loader.load_analysis_data()
+        country_stats = loader.load_country_stats()
+        stats = loader.get_stats()
+        return buyers, exhibitors, pairing, analysis, country_stats, stats
+    except Exception as e:
+        # 显示完整错误信息用于调试
+        error_detail = f"{type(e).__name__}: {e}\n\n{traceback.format_exc()}"
+        raise Exception(f"数据加载失败: {error_detail}")
 
 @st.cache_data(ttl=300)
 def search_buyers(buyers_df, country=None, category=None, tier=None,
