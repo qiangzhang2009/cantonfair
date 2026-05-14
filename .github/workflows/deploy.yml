@@ -16,13 +16,11 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Railway CLI
-        run: |
-          npm install -g @railway/cli
+        run: npm install -g @railway/cli
 
       - name: Deploy to Railway
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         run: |
-          railway login --token "$RAILWAY_TOKEN"
           cd cantonfair_system
           railway up --service cantonfair-pro --environment production
