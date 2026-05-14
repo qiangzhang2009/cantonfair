@@ -324,6 +324,12 @@ except Exception as e:
     2. 进入你的项目 → Settings → API
     3. 复制 Project URL 和 `anon` / `service_role` public key
     """)
+
+    # 提供清除缓存重试
+    st.warning("💡 如果刚配置完 Secrets，请点击下方按钮清除缓存并重试：")
+    if st.button("🗑️ 清除缓存并重试"):
+        st.cache_data.clear()
+        st.rerun()
     st.stop()
 
 # ============================================================

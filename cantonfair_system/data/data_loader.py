@@ -280,20 +280,22 @@ class DataLoader:
 
         # 补充标准化字段（如果 DB 没有则计算）
         if '国家_标准化' not in df.columns or df['国家_标准化'].isna().all():
-            df['国家_标准化'] = df.get('国家_地区', df.get('国家/地区', pd.Series(['']*len(df)))).apply(normalize_country)
+            country_col = '国家_地区' if '国家_地区' in df.columns else ('国家/地区' if '国家/地区' in df.columns else None)
+            raw_countries = df[country_col] if country_col else pd.Series([''] * len(df))
+            df['国家_标准化'] = raw_countries.apply(normalize_country)
         if '大洲' not in df.columns or df['大洲'].isna().all():
             df['大洲'] = df['国家_标准化'].apply(get_continent)
         if '市场层级' not in df.columns or df['市场层级'].isna().all():
             df['市场层级'] = df['大洲'].apply(get_market_level)
-        if '采购商类型_final' not in df.columns:
-            btype_raw = df.get('采购商类型', pd.Series(['']*len(df))).fillna('')
+        if '采购商类型_final' not in df.columns or df['采购商类型_final'].isna().all():
+            btype_raw = df.get('采购商类型', pd.Series([''] * len(df))).fillna('')
             btype_inf = df.apply(
                 lambda r: infer_buyer_type(str(r.get('采购商企业全称', '')),
                                           str(r.get('国家_标准化', ''))), axis=1)
             df['采购商类型_final'] = btype_raw.where(btype_raw != '', btype_inf)
-        if '合作意向_final' not in df.columns:
-            intent_raw = df.get('合作意向', pd.Series(['']*len(df))).fillna('')
-            sessions = df.get('参展届次', pd.Series(['']*len(df))).fillna('')
+        if '合作意向_final' not in df.columns or df['合作意向_final'].isna().all():
+            intent_raw = df.get('合作意向', pd.Series([''] * len(df))).fillna('')
+            sessions = df.get('参展届次', pd.Series([''] * len(df))).fillna('')
             df['合作意向_final'] = intent_raw.where(intent_raw != '', sessions.apply(infer_intent))
 
         df = self._normalize_columns(df)
@@ -416,16 +418,28 @@ class DataLoader:
             }
             return self._stats
 
+        # 安全获取列数据
+        def safe_col(df, col, default=''):
+            return df[col] if col in df.columns else pd.Series([default] * len(df))
+
+        email_col = safe_col(buyers, '联系方式-邮箱')
+        phone_col = safe_col(buyers, '联系方式-电话')
+        wa_col = safe_col(buyers, '联系方式-WhatsApp')
+        intent_col = safe_col(buyers, '合作意向_final')
+        session_col = safe_col(buyers, '参展届次')
+        continent_col = safe_col(buyers, '大洲')
+        ex_session_col = safe_col(exhibitors, '参展届次') if not exhibitors.empty else pd.Series([''])
+
         self._stats = {
             'buyer_count': len(buyers),
             'exhibitor_count': len(exhibitors),
-            'buyer_with_email': int((buyers['联系方式-邮箱'].notna() & (buyers['联系方式-邮箱'] != '')).sum()),
-            'buyer_with_phone': int((buyers['联系方式-电话'].notna() & (buyers['联系方式-电话'] != '')).sum()),
-            'buyer_with_wa': int((buyers['联系方式-WhatsApp'].notna() & (buyers['联系方式-WhatsApp'] != '')).sum()),
-            'high_intent_buyers': int((buyers['合作意向_final'].str.contains('高意向', na=False)).sum()),
-            'two_session_buyers': int((buyers['参展届次'].str.contains(';', na=False)).sum()),
-            'exhibitors_two_session': int((exhibitors['参展届次'].str.contains(';', na=False)).sum()),
-            'continents': buyers['大洲'].value_counts().to_dict() if '大洲' in buyers.columns else {},
+            'buyer_with_email': int((email_col.notna() & (email_col != '')).sum()),
+            'buyer_with_phone': int((phone_col.notna() & (phone_col != '')).sum()),
+            'buyer_with_wa': int((wa_col.notna() & (wa_col != '')).sum()),
+            'high_intent_buyers': int((intent_col.str.contains('高意向', na=False)).sum()),
+            'two_session_buyers': int((session_col.str.contains(';', na=False)).sum()),
+            'exhibitors_two_session': int((ex_session_col.str.contains(';', na=False)).sum()),
+            'continents': continent_col.value_counts().to_dict() if len(continent_col) else {},
         }
         return self._stats
 
