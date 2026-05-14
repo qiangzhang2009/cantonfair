@@ -1,6 +1,6 @@
 """
 数据加载与预处理层
-# VERSION: 2026-05-14-FORCE-REBUILD
+# VERSION: 2026-05-14-FINAL-FIX
 支持模式：
   1. Supabase (优先) — Serverless，查询下推到数据库
   2. 本地 Excel (回退) — 开发/本地调试用
@@ -9,6 +9,9 @@ import os, re, json, asyncio
 import pandas as pd
 import numpy as np
 import httpx
+
+# 强制刷新标记
+print("DATA_LOADER_VERSION: 2026-05-14-FINAL-FIX", flush=True)
 from collections import Counter
 from pathlib import Path
 from typing import Optional
