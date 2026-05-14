@@ -17,13 +17,12 @@ jobs:
 
       - name: Install Railway CLI
         run: |
-          curl -fsSL https://railway.app/install.sh | sh
-          echo "$HOME/.railway/bin" >> "$GITHUB_PATH"
+          npm install -g @railway/cli
 
       - name: Deploy to Railway
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
         run: |
-          cd cantonfair_system
           railway login --token "$RAILWAY_TOKEN"
+          cd cantonfair_system
           railway up --service cantonfair-pro --environment production
