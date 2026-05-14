@@ -251,6 +251,8 @@ class DataLoader:
 
     def _load_from_supabase(self, table: str, limit: int = 500000) -> pd.DataFrame:
         """从 Supabase 分页查询全部数据（绕过 PostgREST 1000 行限制）"""
+        if not USE_SUPABASE:
+            return pd.DataFrame()
         try:
             all_rows = asyncio.run(_fetch_all_async(table))
             if limit and len(all_rows) > limit:
@@ -258,7 +260,17 @@ class DataLoader:
             if all_rows:
                 return pd.DataFrame(all_rows)
         except Exception as e:
-            print(f"[DataLoader] Supabase 查询失败 ({table}): {e}")
+            err_msg = str(e)
+            if 'apikey' in err_msg.lower() or 'unauthorized' in err_msg.lower() or '403' in err_msg:
+                raise Exception(
+                    "⚠️ Supabase 密钥无效或已过期。请检查 Streamlit Cloud 的 Secrets 配置：\n"
+                    "SUPABASE_URL、SUPABASE_KEY、SUPABASE_SERVICE_ROLE_KEY"
+                ) from e
+            if 'connection' in err_msg.lower() or 'timeout' in err_msg.lower():
+                raise Exception(
+                    "⚠️ 无法连接到 Supabase。请检查 SUPABASE_URL 是否正确。"
+                ) from e
+            raise Exception(f"Supabase 查询失败 ({table}): {e}") from e
         return pd.DataFrame()
 
     def _load_buyers_supabase(self) -> pd.DataFrame:

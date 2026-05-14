@@ -302,6 +302,28 @@ try:
 except Exception as e:
     data_loaded = False
     st.error(f"数据加载失败: {e}")
+    st.markdown("""
+    ---
+    ### 🔧 配置指南
+
+    请在 Streamlit Cloud 的 **Settings → Secrets** 中配置以下环境变量：
+
+    ```
+    # Supabase 连接信息（从 Supabase 项目设置 → API 获取）
+    SUPABASE_URL = "https://your-project.supabase.co"
+    SUPABASE_KEY = "your-anon-key"
+    SUPABASE_SERVICE_ROLE_KEY = "your-service-role-key"
+
+    # 应用信息（可选）
+    APP_NAME = "CantonFair Pro"
+    APP_VERSION = "1.0.0"
+    ```
+
+    **获取 Supabase 密钥：**
+    1. 登录 [Supabase](https://supabase.com/dashboard)
+    2. 进入你的项目 → Settings → API
+    3. 复制 Project URL 和 `anon` / `service_role` public key
+    """)
     st.stop()
 
 # ============================================================
