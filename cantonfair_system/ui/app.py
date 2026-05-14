@@ -11,6 +11,31 @@ from plotly.subplots import make_subplots
 import os, sys, time, datetime, json, re
 from collections import Counter
 
+# ====== 健康检查端点（独立于 Streamlit 主路由）=======
+if os.environ.get("ENABLE_STANDALONE_HEALTH") == "1":
+    import http.server
+    import socketserver
+    import threading
+
+    class HealthHandler(http.server.SimpleHTTPRequestHandler):
+        def do_GET(self):
+            if self.path == "/health":
+                self.send_response(200)
+                self.send_header("Content-type", "application/json")
+                self.end_headers()
+                self.wfile.write(b'{"status":"ok"}')
+            else:
+                self.send_response(404)
+                self.end_headers()
+        def log_message(self, *args): pass
+
+    def run_health_server():
+        with socketserver.TCPServer(("", 8503), HealthHandler) as httpd:
+            httpd.serve_forever()
+
+    t = threading.Thread(target=run_health_server, daemon=True)
+    t.start()
+
 # ====== 页面配置 ======
 st.set_page_config(
     page_title="CantonFair Pro — 智能外贸撮合系统",
@@ -141,9 +166,10 @@ st.markdown("""
 
 # ====== 路径设置 ======
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_DIR = os.path.dirname(APP_DIR)  # cantonfair_system/
 DATA_FILE = os.environ.get('DATA_FILE_PATH',
-    os.path.join(os.path.dirname(APP_DIR), '广交会数据综合整理_标准格式.xlsx'))
-sys.path.insert(0, APP_DIR)
+    os.path.join(PROJECT_DIR, '广交会数据综合整理_标准格式.xlsx'))
+sys.path.insert(0, PROJECT_DIR)
 
 # ====== 认证检查 ======
 try:

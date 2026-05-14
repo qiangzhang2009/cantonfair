@@ -1,0 +1,411 @@
+"""
+Excel → Supabase 数据导入脚本 (REST API 模式)
+运行一次即可完成数据迁移
+
+用法:
+    python -m supabase.import_data
+
+依赖:
+    pip install pandas openpyxl python-dotenv httpx
+"""
+import os, sys, time, json
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
+
+import pandas as pd
+import httpx
+from dotenv import load_dotenv
+
+env_path = PROJECT_ROOT / '.env'
+if env_path.exists():
+    load_dotenv(env_path)
+else:
+    load_dotenv()
+
+from data.data_loader import normalize_country, get_continent, get_market_level, infer_buyer_type, infer_trade_mode, infer_intent
+
+SUPABASE_URL = os.getenv('SUPABASE_URL', '').rstrip('/')
+SERVICE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY', '')
+
+if not SUPABASE_URL or not SERVICE_KEY:
+    print("❌ 缺少 SUPABASE_URL 或 SUPABASE_SERVICE_ROLE_KEY")
+    sys.exit(1)
+
+HEADERS = {
+    'apikey': SERVICE_KEY,
+    'Authorization': f'Bearer {SERVICE_KEY}',
+    'Content-Type': 'application/json',
+    'Prefer': 'return=minimal',  # 不等待完整响应体
+}
+
+possible_paths = [
+    PROJECT_ROOT / '广交会数据综合整理_标准格式.xlsx',
+    PROJECT_ROOT.parent / '广交会数据综合整理_标准格式.xlsx',
+]
+DATA_FILE = None
+for p in possible_paths:
+    if p.exists():
+        DATA_FILE = p
+        break
+if DATA_FILE is None:
+    print(f"❌ 数据文件不存在")
+    sys.exit(1)
+
+
+def col_mapping(name: str) -> str:
+    return name.replace('/', '_').replace('-', '_')
+
+
+def load_excel(sheet: str) -> pd.DataFrame:
+    df = pd.read_excel(DATA_FILE, sheet_name=sheet)
+    df.columns = [col_mapping(str(c)) for c in df.columns]
+    return df
+
+
+def _score_to_tier(score: float) -> str:
+    if score >= 80: return 'S'
+    if score >= 65: return 'A'
+    if score >= 50: return 'B'
+    if score >= 35: return 'C'
+    return 'D'
+
+
+def insert_rest(table: str, data: list[dict], batch_size: int = 500, total: int = 0):
+    """通过 REST API 批量插入"""
+    errors = 0
+    for i in range(0, len(data), batch_size):
+        batch = data[i:i+batch_size]
+        tries = 0
+        while tries < 3:
+            try:
+                resp = httpx.post(
+                    f"{SUPABASE_URL}/rest/v1/{table}",
+                    headers=HEADERS,
+                    json=batch,
+                    timeout=60
+                )
+                if resp.status_code in (201, 200):
+                    break
+                elif resp.status_code == 409:
+                    # 重复键，忽略
+                    break
+                else:
+                    tries += 1
+                    time.sleep(2)
+            except Exception as e:
+                tries += 1
+                time.sleep(2)
+        if tries >= 3:
+            errors += len(batch)
+            print(f"  ✗ {table}: 批次失败 (尝试了 3 次)")
+        else:
+            pct = int((i + len(batch)) / len(data) * 20) if len(data) else 0
+            bar = '█' * pct + '░' * (20 - pct)
+            print(f"  {bar} {table}: {i+len(batch):,} / {len(data):,}", end='\r', flush=True)
+    print()
+    if errors:
+        print(f"  ⚠ {errors} 行失败")
+    return len(data) - errors
+
+
+def clear_table(table: str):
+    """清空表"""
+    try:
+        resp = httpx.delete(
+            f"{SUPABASE_URL}/rest/v1/{table}?id=gt.0",
+            headers={**HEADERS, 'Prefer': 'return=minimal'},
+            timeout=60
+        )
+        if resp.status_code in (200, 204, 404):
+            print(f"  ✓ 已清空 {table}")
+    except Exception as e:
+        print(f"  ⚠ {table} 清空失败: {e}")
+
+
+# ---- 数据准备函数 ----
+
+def prepare_buyers(df: pd.DataFrame) -> list[dict]:
+    rows = []
+    for _, r in df.iterrows():
+        country_raw = str(r.get('国家_地区', '')) if pd.notna(r.get('国家_地区')) else ''
+        country_norm = normalize_country(country_raw)
+        continent = get_continent(country_norm)
+        market_level = get_market_level(continent)
+        btype_raw = str(r.get('采购商类型', '')) if pd.notna(r.get('采购商类型')) else ''
+        btype_inf = infer_buyer_type(str(r.get('采购商企业全称', '')), country_norm)
+        btype_final = btype_raw if btype_raw else btype_inf
+        tmode_raw = str(r.get('合作模式', '')) if pd.notna(r.get('合作模式')) else ''
+        tmode_inf = infer_trade_mode(str(r.get('采购商企业全称', '')))
+        tmode_final = tmode_raw if tmode_raw else tmode_inf
+        intent_raw = str(r.get('合作意向', '')) if pd.notna(r.get('合作意向')) else ''
+        sessions = str(r.get('参展届次', '')) if pd.notna(r.get('参展届次')) else ''
+        intent_final = intent_raw if intent_raw else infer_intent(sessions)
+        score = float(r.get('综合评分', 0)) if pd.notna(r.get('综合评分')) else 0.0
+
+        rows.append({
+            '序号': int(r['序号']) if pd.notna(r.get('序号')) else None,
+            '采购商企业全称': str(r.get('采购商企业全称', '')) if pd.notna(r.get('采购商企业全称')) else '',
+            '联系人': str(r.get('联系人', '')) if pd.notna(r.get('联系人')) else '',
+            '职位': str(r.get('职位', '')) if pd.notna(r.get('职位')) else '',
+            '国家_地区': country_raw,
+            '大洲': str(r.get('大洲', continent)) if pd.notna(r.get('大洲')) else continent,
+            '市场层级': str(r.get('市场层级', market_level)) if pd.notna(r.get('市场层级')) else market_level,
+            '采购商类型': btype_raw,
+            '主营品类': str(r.get('主营品类', '')) if pd.notna(r.get('主营品类')) else '',
+            '采购意向品类': str(r.get('采购意向品类', '')) if pd.notna(r.get('采购意向品类')) else '',
+            '合作意向': intent_raw,
+            '合作模式': tmode_raw,
+            '联系方式_电话': str(r.get('联系方式_电话', '')) if pd.notna(r.get('联系方式_电话')) else '',
+            '联系方式_邮箱': str(r.get('联系方式_邮箱', '')) if pd.notna(r.get('联系方式_邮箱')) else '',
+            '联系方式_WhatsApp': str(r.get('联系方式_WhatsApp', '')) if pd.notna(r.get('联系方式_WhatsApp')) else '',
+            '联系方式_传真': str(r.get('联系方式_传真', '')) if pd.notna(r.get('联系方式_传真')) else '',
+            '官网': str(r.get('官网', '')) if pd.notna(r.get('官网')) else '',
+            '地址': str(r.get('地址', '')) if pd.notna(r.get('地址')) else '',
+            '参展届次': sessions,
+            '数据来源': str(r.get('数据来源', '')) if pd.notna(r.get('数据来源')) else '',
+            '联系电话有效性': str(r.get('联系电话有效性', '')) if pd.notna(r.get('联系电话有效性')) else '',
+            '国家_标准化': country_norm,
+            '采购商类型_final': btype_final,
+            '合作意向_final': intent_final,
+            '合作模式_final': tmode_final,
+            '综合评分': score,
+            '客户等级': _score_to_tier(score),
+        })
+    return rows
+
+
+def prepare_exhibitors(df: pd.DataFrame) -> list[dict]:
+    rows = []
+    for _, r in df.iterrows():
+        advs = []
+        for col in ['海关认证', '高新展商', '品牌展商', '创新奖', 'CF奖']:
+            val = str(r.get(col, '')).strip() if pd.notna(r.get(col)) else ''
+            if val == 'Y':
+                advs.append(col.replace('展商', ''))
+        score = float(r.get('综合评分', 0)) if pd.notna(r.get('综合评分')) else 0.0
+
+        rows.append({
+            '序号': int(r['序号']) if pd.notna(r.get('序号')) else None,
+            '参展商企业全称': str(r.get('展商名称', '')) if pd.notna(r.get('展商名称')) else '',
+            '联系人': str(r.get('联系人', '')) if pd.notna(r.get('联系人')) else '',
+            '职位': str(r.get('职位', '')) if pd.notna(r.get('职位')) else '',
+            '手机': str(r.get('手机', '')) if pd.notna(r.get('手机')) else '',
+            '邮箱': str(r.get('邮箱', '')) if pd.notna(r.get('邮箱')) else '',
+            '微信_WhatsApp': str(r.get('微信_WhatsApp', '')) if pd.notna(r.get('微信_WhatsApp')) else '',
+            '省份': str(r.get('省份', '')) if pd.notna(r.get('省份')) else '',
+            '城市': str(r.get('城市', '')) if pd.notna(r.get('城市')) else '',
+            '企业类型': str(r.get('企业类型', '')) if pd.notna(r.get('企业类型')) else '',
+            '企业规模': str(r.get('企业规模', '')) if pd.notna(r.get('企业规模')) else '',
+            '主营品类': str(r.get('主营品类', '')) if pd.notna(r.get('主营品类')) else '',
+            '主营产品关键词': str(r.get('主营产品关键词', '')) if pd.notna(r.get('主营产品关键词')) else '',
+            '贸易形式': str(r.get('贸易形式', '')) if pd.notna(r.get('贸易形式')) else '',
+            '海关认证': str(r.get('海关认证', '')) if pd.notna(r.get('海关认证')) else '',
+            '高新展商': str(r.get('高新展商', '')) if pd.notna(r.get('高新展商')) else '',
+            '品牌展商': str(r.get('品牌展商', '')) if pd.notna(r.get('品牌展商')) else '',
+            '创新奖': str(r.get('创新奖', '')) if pd.notna(r.get('创新奖')) else '',
+            'CF奖': str(r.get('CF奖', '')) if pd.notna(r.get('CF奖')) else '',
+            '多届参展': str(r.get('多届参展', '')) if pd.notna(r.get('多届参展')) else '',
+            '参展届次': str(r.get('参展届次', '')) if pd.notna(r.get('参展届次')) else '',
+            '可对接采购商品类': str(r.get('可对接采购商品类', '')) if pd.notna(r.get('可对接采购商品类')) else '',
+            '合作意向': str(r.get('合作意向', '')) if pd.notna(r.get('合作意向')) else '',
+            '合作模式': str(r.get('合作模式', '')) if pd.notna(r.get('合作模式')) else '',
+            '官网': str(r.get('官网', '')) if pd.notna(r.get('官网')) else '',
+            '备注': str(r.get('备注', '')) if pd.notna(r.get('备注')) else '',
+            '企业类型_final': str(r.get('企业类型', '')) if pd.notna(r.get('企业类型')) else '',
+            '核心优势': '; '.join(advs),
+            '综合评分': score,
+            '客户等级': _score_to_tier(score),
+        })
+    return rows
+
+
+def prepare_category_analysis(df: pd.DataFrame) -> list[dict]:
+    rows = []
+    for _, r in df.iterrows():
+        rows.append({
+            '品类': str(r.get('品类', '')) if pd.notna(r.get('品类')) else '',
+            '采购商数_两届合计': int(r['采购商数(两届合计)']) if pd.notna(r.get('采购商数(两届合计)')) else 0,
+            '参展商数': int(r['参展商数']) if pd.notna(r.get('参展商数')) else 0,
+            '供需比_采购商参展商': float(r['供需比(采购商/参展商)']) if pd.notna(r.get('供需比(采购商/参展商)')) else 0.0,
+            '撮合建议': str(r.get('撮合建议', '')) if pd.notna(r.get('撮合建议')) else '',
+        })
+    return rows
+
+
+def prepare_country_stats(df: pd.DataFrame) -> list[dict]:
+        ratio_str = str(r.get('占比', '0')).strip()
+        ratio = 0.0
+        if ratio_str:
+            ratio_str = ratio_str.rstrip('%').replace(',', '')
+            try:
+                ratio = float(ratio_str)
+            except ValueError:
+                ratio = 0.0
+        rows.append({
+            '排名': int(r['排名']) if pd.notna(r.get('排名')) else 0,
+            '国家_地区': str(r.get('国家/地区', '')) if pd.notna(r.get('国家/地区')) else '',
+            '大洲': str(r.get('大洲', '')) if pd.notna(r.get('大洲')) else '',
+            '采购商数量': int(r['采购商数量']) if pd.notna(r.get('采购商数量')) else 0,
+            '占比': ratio,
+            '市场类型': str(r.get('市场类型', '')) if pd.notna(r.get('市场类型')) else '',
+        })
+
+
+def prepare_top_exhibitors(df: pd.DataFrame) -> list[dict]:
+    rows = []
+    for _, r in df.iterrows():
+        rows.append({
+            '展商名称': str(r.get('展商名称', '')) if pd.notna(r.get('展商名称')) else '',
+            '省份': str(r.get('省份', '')) if pd.notna(r.get('省份')) else '',
+            '城市': str(r.get('城市', '')) if pd.notna(r.get('城市')) else '',
+            '企业类型': str(r.get('企业类型', '')) if pd.notna(r.get('企业类型')) else '',
+            '贸易形式': str(r.get('贸易形式', '')) if pd.notna(r.get('贸易形式')) else '',
+            '主营产品前100字': str(r.get('主营产品(前100字)', '')) if pd.notna(r.get('主营产品(前100字)')) else '',
+            '海关认证': str(r.get('海关认证', '')) if pd.notna(r.get('海关认证')) else '',
+            '高新展商': str(r.get('高新展商', '')) if pd.notna(r.get('高新展商')) else '',
+            '品牌展商': str(r.get('品牌展商', '')) if pd.notna(r.get('品牌展商')) else '',
+            '多届参展': str(r.get('多届参展', '')) if pd.notna(r.get('多届参展')) else '',
+            '参展届次': str(r.get('参展届次', '')) if pd.notna(r.get('参展届次')) else '',
+            '可对接品类': str(r.get('可对接品类', '')) if pd.notna(r.get('可对接品类')) else '',
+            '手机': str(r.get('手机', '')) if pd.notna(r.get('手机')) else '',
+            '邮箱': str(r.get('邮箱', '')) if pd.notna(r.get('邮箱')) else '',
+        })
+    return rows
+
+
+def prepare_pairing(df: pd.DataFrame) -> list[dict]:
+    rows = []
+    for _, r in df.iterrows():
+        rows.append({
+            '品类': str(r.get('品类', '')) if pd.notna(r.get('品类')) else '',
+            '展商名称': str(r.get('展商名称', '')) if pd.notna(r.get('展商名称')) else '',
+            '展商省份': str(r.get('展商省份', '')) if pd.notna(r.get('展商省份')) else '',
+            '展商城市': str(r.get('展商城市', '')) if pd.notna(r.get('展商城市')) else '',
+            '展商类型': str(r.get('展商类型', '')) if pd.notna(r.get('展商类型')) else '',
+            '展商贸易形式': str(r.get('展商贸易形式', '')) if pd.notna(r.get('展商贸易形式')) else '',
+            '展商亮点标签': str(r.get('展商亮点标签', '')) if pd.notna(r.get('展商亮点标签')) else '',
+            '展商主营产品': str(r.get('展商主营产品', '')) if pd.notna(r.get('展商主营产品')) else '',
+            '采购商名称': str(r.get('采购商名称', '')) if pd.notna(r.get('采购商名称')) else '',
+            '采购商国家': str(r.get('采购商国家', '')) if pd.notna(r.get('采购商国家')) else '',
+            '采购商大洲': str(r.get('采购商大洲', '')) if pd.notna(r.get('采购商大洲')) else '',
+            '采购商市场层级': str(r.get('采购商市场层级', '')) if pd.notna(r.get('采购商市场层级')) else '',
+            '采购商类型': str(r.get('采购商类型', '')) if pd.notna(r.get('采购商类型')) else '',
+            '采购商合作意向': str(r.get('采购商合作意向', '')) if pd.notna(r.get('采购商合作意向')) else '',
+            '展商联系方式': str(r.get('展商联系方式', '')) if pd.notna(r.get('展商联系方式')) else '',
+            '采购商电话': str(r.get('采购商电话', '')) if pd.notna(r.get('采购商电话')) else '',
+            '采购商WhatsApp链接': str(r.get('采购商WhatsApp链接', '')) if pd.notna(r.get('采购商WhatsApp链接')) else '',
+        })
+    return rows
+
+
+def count_rows(table: str) -> int:
+    try:
+        resp = httpx.get(
+            f"{SUPABASE_URL}/rest/v1/{table}?select=id",
+            headers=HEADERS,
+            params={'limit': 1},
+            timeout=30
+        )
+        if resp.status_code == 200:
+            total = int(resp.headers.get('content-range', '/0').split('/')[-1])
+            return total
+    except:
+        pass
+    return 0
+
+
+def main():
+    print("=" * 60)
+    print("CantonFair Pro — Supabase 数据导入")
+    print("=" * 60)
+    print(f"数据文件: {DATA_FILE}")
+    print(f"Supabase:  {SUPABASE_URL}")
+    print()
+
+    # 检查当前行数
+    print("当前数据量:")
+    for t in ['buyers', 'exhibitors', 'category_analysis', 'country_stats', 'top_exhibitors', 'pairing']:
+        n = count_rows(t)
+        print(f"  {t}: {n:,} 行")
+    print()
+
+    import_time = 0
+
+    # 1. 采购商
+    t0 = time.time()
+    print("📊 采购商数据...")
+    df = load_excel('采购商数据')
+    data = prepare_buyers(df)
+    print(f"  准备完成 {len(data):,} 行，开始导入...")
+    insert_rest('buyers', data)
+    print(f"  完成! 耗时 {time.time()-t0:.1f}s\n")
+    import_time += time.time() - t0
+
+    # 2. 参展商
+    t0 = time.time()
+    print("🏭 参展商数据...")
+    df = load_excel('参展商数据')
+    data = prepare_exhibitors(df)
+    print(f"  准备完成 {len(data):,} 行，开始导入...")
+    insert_rest('exhibitors', data)
+    print(f"  完成! 耗时 {time.time()-t0:.1f}s\n")
+    import_time += time.time() - t0
+
+    # 3. 品类撮合分析
+    t0 = time.time()
+    print("📈 品类撮合分析...")
+    df = load_excel('品类撮合分析')
+    data = prepare_category_analysis(df)
+    insert_rest('category_analysis', data, batch_size=100)
+    print(f"  完成! 耗时 {time.time()-t0:.1f}s\n")
+    import_time += time.time() - t0
+
+    # 4. 采购商来源分析
+    t0 = time.time()
+    print("🌍 采购商来源分析...")
+    df = load_excel('采购商来源分析')
+    data = prepare_country_stats(df)
+    insert_rest('country_stats', data, batch_size=100)
+    print(f"  完成! 耗时 {time.time()-t0:.1f}s\n")
+    import_time += time.time() - t0
+
+    # 5. 高价值展商速查
+    t0 = time.time()
+    print("⭐ 高价值展商速查...")
+    df = load_excel('高价值展商速查')
+    data = prepare_top_exhibitors(df)
+    insert_rest('top_exhibitors', data, batch_size=500)
+    print(f"  完成! 耗时 {time.time()-t0:.1f}s\n")
+    import_time += time.time() - t0
+
+    # 6. 品类撮合配对表
+    t0 = time.time()
+    print("🤝 品类撮合配对表...")
+    df = load_excel('品类撮合配对表')
+    data = prepare_pairing(df)
+    insert_rest('pairing', data, batch_size=500)
+    print(f"  完成! 耗时 {time.time()-t0:.1f}s\n")
+    import_time += time.time() - t0
+
+    # 最终验证
+    print("=" * 60)
+    print("最终数据量:")
+    total = 0
+    for t in ['buyers', 'exhibitors', 'category_analysis', 'country_stats', 'top_exhibitors', 'pairing']:
+        n = count_rows(t)
+        total += n
+        print(f"  {t}: {n:,} 行")
+    print()
+    print(f"总耗时: {import_time:.0f}s, 总数据量: {total:,} 行")
+    print()
+    print("🎉 数据导入完成！")
+    print()
+    print("下一步:")
+    print("  1. 本地测试: python -m streamlit run ui/app.py")
+    print("  2. 部署 Streamlit Cloud")
+
+
+if __name__ == '__main__':
+    main()

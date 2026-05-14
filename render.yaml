@@ -8,7 +8,7 @@ services:
     numInstances: 1
     dockerfilePath: ./cantonfair_system/Dockerfile
     dockerContext: ./cantonfair_system
-    healthCheckPath: /_stcore/health
+    healthCheckPath: /health
     envVars:
       - key: R2_ACCOUNT_ID
         sync: false
@@ -26,3 +26,5 @@ services:
         value: CantonFair Pro
       - key: LOG_LEVEL
         value: INFO
+      - key: ENABLE_STANDALONE_HEALTH
+        value: "1"

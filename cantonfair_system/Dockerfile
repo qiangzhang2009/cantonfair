@@ -22,12 +22,15 @@ COPY . .
 RUN mkdir -p /app/data /app/models /app/cache
 RUN chown -R appuser:appuser /app
 
+# ---------- 环境变量 ----------
+ENV ENABLE_STANDALONE_HEALTH=1
+
 # ---------- 非 root 用户运行 ----------
 USER appuser
 
 # ---------- 健康检查 ----------
-HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
-    CMD curl -f http://localhost:8502/_stcore/health || exit 1
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:8503/health || exit 1
 
 # ---------- 启动 ----------
 EXPOSE 8502
