@@ -15,25 +15,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install dependencies
+      - name: Install Railway CLI
         run: |
-          pip install -r cantonfair_system/requirements.txt
-
-      - name: Build Docker image
-        run: |
-          cd cantonfair_system
-          docker build -t cantonfair-pro:${{ github.sha }} .
+          curl -fsSL https://railway.app/install.sh | sh
+          echo "$HOME/.railway/bin" >> $GITHUB_PATH
 
       - name: Deploy to Railway
-        uses: buildtomorrow/railway-action@v1
-        with:
-          token: ${{ secrets.RAILWAY_TOKEN }}
-          service: cantonfair-pro
-          environment: production
-          dockerfile: ./cantonfair_system/Dockerfile
-          docker_context: ./cantonfair_system
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          cd cantonfair_system
+          railway login --token "$RAILWAY_TOKEN"
+          railway up --service cantonfair-pro --environment production
