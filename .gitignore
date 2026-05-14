@@ -39,3 +39,4 @@ outreach_data.json
 # 云平台
 railway.toml
 .render.yaml (will be created separately)
+.gstack/
