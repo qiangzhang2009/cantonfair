@@ -433,6 +433,12 @@ class DataLoader:
         buyers = self.load_buyers()
         exhibitors = self.load_exhibitors()
 
+        # DEBUG: 确保 buyers 有合作意向_final 列
+        if '合作意向_final' not in buyers.columns:
+            import sys
+            print(f"DEBUG: buyers.columns = {list(buyers.columns)[:10]}", file=sys.stderr)
+            buyers['合作意向_final'] = '意向待定'
+
         if buyers.empty:
             self._stats = {
                 'buyer_count': 0, 'exhibitor_count': 0,
