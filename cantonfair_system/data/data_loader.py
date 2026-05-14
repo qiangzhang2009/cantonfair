@@ -306,8 +306,8 @@ class DataLoader:
         if df.empty:
             return df
 
-        if '企业类型_final' not in df.columns:
-            etype = df['企业类型'].fillna('') if '企业类型' in df.columns else ''
+        if '企业类型_final' not in df.columns or df['企业类型_final'].isna().all():
+            etype = df['企业类型'].fillna('') if '企业类型' in df.columns else pd.Series([''] * len(df))
             df['企业类型_final'] = etype
 
         def get_advantages(row):
@@ -317,7 +317,7 @@ class DataLoader:
                     advs.append(col.replace('展商', ''))
             return '; '.join(advs) if advs else ''
 
-        if '核心优势' not in df.columns:
+        if '核心优势' not in df.columns or df['核心优势'].isna().all():
             df['核心优势'] = df.apply(get_advantages, axis=1)
 
         df = self._normalize_columns(df)
