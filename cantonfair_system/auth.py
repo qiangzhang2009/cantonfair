@@ -152,13 +152,6 @@ def show_login_page():
     if not HAS_STREAMLIT:
         return
 
-    st.set_page_config(
-        page_title="CantonFair Pro — 登录",
-        page_icon="🏭",
-        layout="centered",
-        initial_sidebar_state="collapsed"
-    )
-
     st.markdown("""
     <style>
         body { background: #0F172A; }
@@ -222,7 +215,7 @@ def show_login_page():
 def inject_auth_check():
     """
     在受保护页面的 st.set_page_config 之后调用
-    如果未登录则重定向到登录
+    如果未登录则渲染登录页面并停止执行
     """
     if not is_authenticated():
         show_login_page()
