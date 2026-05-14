@@ -394,6 +394,10 @@ class DataLoader:
             else:
                 df['合作意向_final'] = pd.Series(dtype=str)
 
+        # 统一处理：确保 采购商类型_final 列存在
+        if '采购商类型_final' not in df.columns:
+            df['采购商类型_final'] = '未知'
+
         self._buyers = df
         return df
 
@@ -434,21 +438,49 @@ class DataLoader:
         if self._stats is not None:
             return self._stats
 
-        buyers = self.load_buyers()
-        exhibitors = self.load_exhibitors()
+        try:
+            buyers = self.load_buyers()
+            exhibitors = self.load_exhibitors()
+        except Exception as e:
+            print(f"Error loading data: {e}")
+            buyers = pd.DataFrame()
+            exhibitors = pd.DataFrame()
 
         # 确保 buyers 是 DataFrame 并且有合作意向_final 列
-        if isinstance(buyers, pd.DataFrame) and len(buyers) > 0:
-            if '合作意向_final' not in buyers.columns:
-                buyers['合作意向_final'] = '意向待定'
-            # 也确保参展届次列存在
-            if '参展届次' not in buyers.columns:
-                buyers['参展届次'] = ''
-        elif isinstance(buyers, pd.DataFrame) and len(buyers) == 0:
-            buyers['合作意向_final'] = pd.Series(dtype=str)
-        else:
-            # buyers 不是 DataFrame，创建一个空的
-            buyers = pd.DataFrame({'合作意向_final': []})
+        try:
+            if isinstance(buyers, pd.DataFrame) and len(buyers) > 0:
+                if '合作意向_final' not in buyers.columns:
+                    buyers['合作意向_final'] = '意向待定'
+                if '参展届次' not in buyers.columns:
+                    buyers['参展届次'] = ''
+                if '联系方式-邮箱' not in buyers.columns:
+                    buyers['联系方式-邮箱'] = ''
+                if '联系方式-电话' not in buyers.columns:
+                    buyers['联系方式-电话'] = ''
+                if '联系方式-WhatsApp' not in buyers.columns:
+                    buyers['联系方式-WhatsApp'] = ''
+                if '大洲' not in buyers.columns:
+                    buyers['大洲'] = '未知'
+            elif isinstance(buyers, pd.DataFrame) and len(buyers) == 0:
+                buyers['合作意向_final'] = pd.Series(dtype=str)
+                buyers['参展届次'] = pd.Series(dtype=str)
+                buyers['联系方式-邮箱'] = pd.Series(dtype=str)
+                buyers['联系方式-电话'] = pd.Series(dtype=str)
+                buyers['联系方式-WhatsApp'] = pd.Series(dtype=str)
+                buyers['大洲'] = pd.Series(dtype=str)
+            else:
+                buyers = pd.DataFrame({
+                    '合作意向_final': [], '参展届次': [],
+                    '联系方式-邮箱': [], '联系方式-电话': [],
+                    '联系方式-WhatsApp': [], '大洲': []
+                })
+        except Exception as e:
+            print(f"Error fixing columns: {e}")
+            buyers = pd.DataFrame({
+                '合作意向_final': [], '参展届次': [],
+                '联系方式-邮箱': [], '联系方式-电话': [],
+                '联系方式-WhatsApp': [], '大洲': []
+            })
 
         if buyers.empty:
             self._stats = {

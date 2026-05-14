@@ -200,11 +200,27 @@ def load_all_data():
         analysis = loader.load_analysis_data()
         country_stats = loader.load_country_stats()
 
-        # 确保关键列存在（双重保护）
+        # 确保关键列存在（多重保护）
         if buyers is not None and isinstance(buyers, pd.DataFrame):
+            # 添加所有可能缺失的列
             if '合作意向_final' not in buyers.columns:
-                buyers = buyers.copy()
                 buyers['合作意向_final'] = '意向待定'
+            if '采购商类型_final' not in buyers.columns:
+                buyers['采购商类型_final'] = '未知'
+            if '主营品类' not in buyers.columns:
+                buyers['主营品类'] = ''
+            if '联系方式-邮箱' not in buyers.columns:
+                buyers['联系方式-邮箱'] = ''
+            if '联系方式-电话' not in buyers.columns:
+                buyers['联系方式-电话'] = ''
+            if '联系方式-WhatsApp' not in buyers.columns:
+                buyers['联系方式-WhatsApp'] = ''
+            if '大洲' not in buyers.columns:
+                buyers['大洲'] = '未知'
+            if '国家/地区' not in buyers.columns:
+                buyers['国家/地区'] = buyers.get('国家_地区', '未知')
+            if '参展届次' not in buyers.columns:
+                buyers['参展届次'] = ''
 
         # 尝试获取统计数据，如果失败则使用默认值
         try:
