@@ -410,13 +410,6 @@ if page == "📊 数据总览":
                 color_discrete_map={'发达':'#2563EB', '新兴':'#10B981'},
                 template='plotly_dark'
             )
-            fig.update_layout(
-                plot_bgcolor='transparent',
-                paper_bgcolor='transparent',
-                font=dict(color='#E2E8F0'),
-                height=500
-            )
-            fig.update_traces(marker=dict(opacity=0.85, line=dict(width=0)))
             st.plotly_chart(fig, use_container_width=True)
 
             col_a, col_b = st.columns(2)
@@ -427,10 +420,6 @@ if page == "📊 数据总览":
                     hole=0.4, template='plotly_dark',
                     color_discrete_sequence=px.colors.qualitative.Set3
                 )
-                fig_pie.update_layout(
-                    plot_bgcolor='transparent', paper_bgcolor='transparent',
-                    font=dict(color='#E2E8F0'), height=400
-                )
                 st.plotly_chart(fig_pie, use_container_width=True)
             with col_b:
                 # 大洲分布
@@ -439,11 +428,6 @@ if page == "📊 数据总览":
                     names=cont_dist.index, values=cont_dist.values,
                     hole=0.4, template='plotly_dark',
                     color_discrete_sequence=px.colors.qualitative.Pastel
-                )
-                fig_cont.update_layout(
-                    plot_bgcolor='transparent', paper_bgcolor='transparent',
-                    font=dict(color='#E2E8F0'), height=400,
-                    title='大洲分布'
                 )
                 st.plotly_chart(fig_cont, use_container_width=True)
 
@@ -456,12 +440,6 @@ if page == "📊 数据总览":
                 orientation='h', template='plotly_dark',
                 color=cat_dist.values,
                 color_continuous_scale='Blues'
-            )
-            fig_cat.update_layout(
-                plot_bgcolor='transparent', paper_bgcolor='transparent',
-                font=dict(color='#E2E8F0'), height=600,
-                xaxis_title='采购商数量', showlegend=False,
-                coloraxis_showscale=False
             )
             st.plotly_chart(fig_cat, use_container_width=True)
 
@@ -480,10 +458,6 @@ if page == "📊 数据总览":
                     '低意向（市场调研）':'#6B7280'
                 }
             )
-            fig_int.update_layout(
-                plot_bgcolor='transparent', paper_bgcolor='transparent',
-                font=dict(color='#E2E8F0'), height=400
-            )
             st.plotly_chart(fig_int, use_container_width=True)
         with col2:
             bt_dist = buyers['采购商类型_final'].value_counts().head(8)
@@ -491,11 +465,6 @@ if page == "📊 数据总览":
                 x=bt_dist.values, y=bt_dist.index,
                 orientation='h', template='plotly_dark',
                 color=bt_dist.values, color_continuous_scale='Teal'
-            )
-            fig_bt.update_layout(
-                plot_bgcolor='transparent', paper_bgcolor='transparent',
-                font=dict(color='#E2E8F0'), height=400,
-                xaxis_title='数量', showlegend=False, coloraxis_showscale=False
             )
             st.plotly_chart(fig_bt, use_container_width=True)
 
@@ -511,10 +480,6 @@ if page == "📊 数据总览":
                 hover_name='品类',
                 template='plotly_dark',
                 size_max=50
-            )
-            fig_matrix.update_layout(
-                plot_bgcolor='transparent', paper_bgcolor='transparent',
-                font=dict(color='#E2E8F0'), height=500
             )
             st.plotly_chart(fig_matrix, use_container_width=True)
 
