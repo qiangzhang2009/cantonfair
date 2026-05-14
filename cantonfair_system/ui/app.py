@@ -329,12 +329,13 @@ with st.sidebar:
         st.caption("缓存: 自动刷新")
 
 # ====== 全局加载数据 ======
+# DEBUG MARKER: 如果看到这个标记，说明代码已更新 - 2026-05-14 16:45
 try:
     buyers, exhibitors, pairing, analysis, country_stats, stats = load_all_data()
     data_loaded = True
 except Exception as e:
     data_loaded = False
-    st.error(f"数据加载失败: {e}")
+    st.error(f"数据加载失败 (更新版本): {e}")
     st.markdown("""
     ---
     ### 🔧 配置指南
