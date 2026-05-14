@@ -147,11 +147,8 @@ sys.path.insert(0, APP_DIR)
 
 # ====== 认证检查 ======
 try:
-    from auth import is_authenticated, inject_auth_check, render_auth_sidebar, show_login_page
-    if not is_authenticated():
-        show_login_page()
-        inject_auth_check()
-        st.stop()
+    from auth import inject_auth_check
+    inject_auth_check()
 except ImportError:
     pass  # 本地开发模式无认证
 
