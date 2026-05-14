@@ -9,6 +9,16 @@ from collections import Counter
 from pathlib import Path
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PARQUET_DIR = os.path.join(BASE_DIR, 'data', 'parquet_cache')
+
+SHEET_TO_PARQUET = {
+    '采购商数据': 'buyers',
+    '参展商数据': 'exhibitors',
+    '品类撮合分析': 'category_analysis',
+    '采购商来源分析': 'country_stats',
+    '高价值展商速查': 'top_exhibitors',
+    '品类撮合配对表': 'pairing',
+}
 
 # 延迟导入 cloud_storage，避免循环依赖
 _storage_instance = None
@@ -205,6 +215,24 @@ class DataLoader:
         self._exhibitors = None
         self._stats = None
 
+    def _read_parquet_or_excel(self, sheet_name: str):
+        """优先从 Parquet 缓存读取，失败则回退到 Excel"""
+        pq_name = SHEET_TO_PARQUET.get(sheet_name)
+        if pq_name:
+            pq_path = os.path.join(PARQUET_DIR, f'{pq_name}.parquet')
+            if os.path.exists(pq_path):
+                try:
+                    return pd.read_parquet(pq_path)
+                except Exception:
+                    pass
+        path = self._resolve_path()
+        if path:
+            try:
+                return pd.read_excel(path, sheet_name=sheet_name)
+            except Exception:
+                pass
+        return pd.DataFrame()
+
     def _resolve_path(self) -> str:
         """解析数据文件路径（支持云存储）"""
         if self.data_file and os.path.exists(self.data_file):
@@ -226,17 +254,7 @@ class DataLoader:
     def load_buyers(self, force=False):
         if self._buyers is not None and not force:
             return self._buyers
-        path = self._resolve_path()
-        if not path or not os.path.exists(path):
-            print(f"警告: 数据文件不存在: {path}")
-            self._buyers = pd.DataFrame()
-            return self._buyers
-        try:
-            df = pd.read_excel(path, sheet_name='采购商数据')
-        except Exception as e:
-            print(f"读取采购商数据失败: {e}")
-            self._buyers = pd.DataFrame()
-            return self._buyers
+        df = self._read_parquet_or_excel('采购商数据')
 
         df['国家_标准化'] = df['国家/地区'].apply(normalize_country)
         df['大洲'] = df['国家_标准化'].apply(get_continent)
@@ -270,17 +288,7 @@ class DataLoader:
     def load_exhibitors(self, force=False):
         if self._exhibitors is not None and not force:
             return self._exhibitors
-        path = self._resolve_path()
-        if not path or not os.path.exists(path):
-            print(f"警告: 数据文件不存在: {path}")
-            self._exhibitors = pd.DataFrame()
-            return self._exhibitors
-        try:
-            df = pd.read_excel(path, sheet_name='参展商数据')
-        except Exception as e:
-            print(f"读取参展商数据失败: {e}")
-            self._exhibitors = pd.DataFrame()
-            return self._exhibitors
+        df = self._read_parquet_or_excel('参展商数据')
 
         etype = df['企业类型*'].fillna('') if '企业类型*' in df.columns else ''
         df['企业类型_final'] = etype
@@ -296,40 +304,16 @@ class DataLoader:
         return df
 
     def load_pairing_data(self):
-        path = self._resolve_path()
-        if not path or not os.path.exists(path):
-            return pd.DataFrame()
-        try:
-            return pd.read_excel(path, sheet_name='品类撮合配对表')
-        except:
-            return pd.DataFrame()
+        return self._read_parquet_or_excel('品类撮合配对表')
 
     def load_analysis_data(self):
-        path = self._resolve_path()
-        if not path or not os.path.exists(path):
-            return pd.DataFrame()
-        try:
-            return pd.read_excel(path, sheet_name='品类撮合分析')
-        except:
-            return pd.DataFrame()
+        return self._read_parquet_or_excel('品类撮合分析')
 
     def load_country_stats(self):
-        path = self._resolve_path()
-        if not path or not os.path.exists(path):
-            return pd.DataFrame()
-        try:
-            return pd.read_excel(path, sheet_name='采购商来源分析')
-        except:
-            return pd.DataFrame()
+        return self._read_parquet_or_excel('采购商来源分析')
 
     def load_high_value_exhibitors(self):
-        path = self._resolve_path()
-        if not path or not os.path.exists(path):
-            return pd.DataFrame()
-        try:
-            return pd.read_excel(path, sheet_name='高价值展商速查')
-        except:
-            return pd.DataFrame()
+        return self._read_parquet_or_excel('高价值展商速查')
 
     def get_stats(self):
         if self._stats is not None: return self._stats
