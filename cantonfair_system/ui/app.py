@@ -415,8 +415,7 @@ if page == "📊 数据总览":
                 font=dict(color='#E2E8F0'),
                 height=500,
                 xaxis=dict(tickangle=-45),
-                showlegend=True,
-                legend=dict(title_text='市场类型')
+                showlegend=True
             )
             fig.update_traces(marker=dict(opacity=0.85, line=dict(width=0)))
             st.plotly_chart(fig, use_container_width=True)
