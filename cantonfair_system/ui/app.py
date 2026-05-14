@@ -200,18 +200,27 @@ def load_all_data():
         analysis = loader.load_analysis_data()
         country_stats = loader.load_country_stats()
 
-        # 确保关键列存在（修复 Streamlit Cloud 上的缓存问题）
+        # 确保关键列存在（双重保护）
         if buyers is not None and isinstance(buyers, pd.DataFrame):
             if '合作意向_final' not in buyers.columns:
                 buyers = buyers.copy()
-                if '参展届次' in buyers.columns:
-                    buyers['合作意向_final'] = buyers['参展届次'].apply(
-                        lambda s: '高意向（多届参展）' if pd.notna(s) and ';' in str(s) else '意向待定'
-                    )
-                else:
-                    buyers['合作意向_final'] = '意向待定'
+                buyers['合作意向_final'] = '意向待定'
 
-        stats = loader.get_stats()
+        # 尝试获取统计数据，如果失败则使用默认值
+        try:
+            stats = loader.get_stats()
+        except Exception as stats_error:
+            print(f"get_stats failed: {stats_error}")
+            # 返回默认统计数据
+            stats = {
+                'buyer_count': len(buyers) if buyers is not None else 0,
+                'exhibitor_count': len(exhibitors) if exhibitors is not None else 0,
+                'buyer_with_email': 0, 'buyer_with_phone': 0,
+                'buyer_with_wa': 0, 'high_intent_buyers': 0,
+                'two_session_buyers': 0, 'exhibitors_two_session': 0,
+                'continents': {},
+            }
+
         return buyers, exhibitors, pairing, analysis, country_stats, stats
     except Exception as e:
         # 显示完整错误信息用于调试
