@@ -411,11 +411,10 @@ if page == "📊 数据总览":
                 template='plotly_dark'
             )
             fig.update_layout(
-                plot_bgcolor='transparent', paper_bgcolor='transparent',
+                plot_bgcolor='transparent',
+                paper_bgcolor='transparent',
                 font=dict(color='#E2E8F0'),
-                height=500,
-                xaxis=dict(tickangle=-45),
-                showlegend=True
+                height=500
             )
             fig.update_traces(marker=dict(opacity=0.85, line=dict(width=0)))
             st.plotly_chart(fig, use_container_width=True)
