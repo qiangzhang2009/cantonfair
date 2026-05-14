@@ -365,6 +365,22 @@ class DataLoader:
         else:
             df = self._load_from_excel('采购商数据')
 
+        # 统一处理：确保 合作意向_final 列存在
+        if '合作意向_final' not in df.columns or df['合作意向_final'].isna().all():
+            if not df.empty:
+                intent_raw = df.get('合作意向', pd.Series([''] * len(df))).fillna('')
+                sessions = df.get('参展届次', pd.Series([''] * len(df))).fillna('')
+                def _infer_int(s):
+                    if pd.isna(s) or str(s).strip() == '':
+                        return '意向待定'
+                    sess = str(s)
+                    if ';' in sess:
+                        return '高意向（多届参展）'
+                    return '一般意向'
+                df['合作意向_final'] = intent_raw.where(intent_raw != '', sessions.apply(_infer_int))
+            else:
+                df['合作意向_final'] = pd.Series(dtype=str)
+
         self._buyers = df
         return df
 
