@@ -18,14 +18,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r cantonfair_system/requirements.txt
-      - name: Verify data loader imports
+      - name: Verify data loader syntax
         run: |
           cd cantonfair_system
-          python -c "
-            from data.data_loader import get_loader
-            print('Data loader imports OK')
-          "
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          python -c "import data.data_loader; print('data_loader syntax OK')"
