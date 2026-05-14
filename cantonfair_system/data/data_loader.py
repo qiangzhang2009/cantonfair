@@ -444,16 +444,18 @@ class DataLoader:
             return self._stats
 
         # 安全获取列数据
-        def safe_col(df, col, default=''):
-            return df[col] if col in df.columns else pd.Series([default] * len(df))
+        def _safe(df, col, default=''):
+            if col in df.columns:
+                return df[col].fillna(default)
+            return pd.Series([default] * len(df))
 
-        email_col = safe_col(buyers, '联系方式-邮箱')
-        phone_col = safe_col(buyers, '联系方式-电话')
-        wa_col = safe_col(buyers, '联系方式-WhatsApp')
-        intent_col = safe_col(buyers, '合作意向_final')
-        session_col = safe_col(buyers, '参展届次')
-        continent_col = safe_col(buyers, '大洲')
-        ex_session_col = safe_col(exhibitors, '参展届次') if not exhibitors.empty else pd.Series([''])
+        email_col = _safe(buyers, '联系方式-邮箱')
+        phone_col = _safe(buyers, '联系方式-电话')
+        wa_col = _safe(buyers, '联系方式-WhatsApp')
+        intent_col = _safe(buyers, '合作意向_final')
+        session_col = _safe(buyers, '参展届次')
+        continent_col = _safe(buyers, '大洲')
+        ex_session_col = _safe(exhibitors, '参展届次') if not exhibitors.empty else pd.Series([''])
 
         self._stats = {
             'buyer_count': len(buyers),
