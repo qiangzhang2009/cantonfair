@@ -288,14 +288,14 @@ class DataLoader:
         if '市场层级' not in df.columns or df['市场层级'].isna().all():
             df['市场层级'] = df['大洲'].apply(get_market_level)
         if '采购商类型_final' not in df.columns or df['采购商类型_final'].isna().all():
-            btype_raw = df.get('采购商类型', pd.Series([''] * len(df))).fillna('')
+            btype_raw = self._safe_series(df, '采购商类型', '')
             btype_inf = df.apply(
                 lambda r: infer_buyer_type(str(r.get('采购商企业全称', '')),
                                           str(r.get('国家_标准化', ''))), axis=1)
             df['采购商类型_final'] = btype_raw.where(btype_raw != '', btype_inf)
         if '合作意向_final' not in df.columns or df['合作意向_final'].isna().all():
-            intent_raw = df.get('合作意向', pd.Series([''] * len(df))).fillna('')
-            sessions = df.get('参展届次', pd.Series([''] * len(df))).fillna('')
+            intent_raw = self._safe_series(df, '合作意向', '')
+            sessions = self._safe_series(df, '参展届次', '')
             df['合作意向_final'] = intent_raw.where(intent_raw != '', sessions.apply(infer_intent))
 
         df = self._normalize_columns(df)
@@ -356,6 +356,15 @@ class DataLoader:
 
     # ---- 公开 API ----
 
+    def _safe_series(self, df: pd.DataFrame, col: str, default=''):
+        """安全获取列，防止重复列名返回 DataFrame"""
+        if col not in df.columns:
+            return pd.Series([default] * len(df), index=df.index)
+        result = df[col]
+        if isinstance(result, pd.DataFrame):
+            return result.iloc[:, 0].fillna(default)
+        return result.fillna(default)
+
     def load_buyers(self, force=False):
         if self._buyers is not None and not force:
             return self._buyers
@@ -368,8 +377,8 @@ class DataLoader:
         # 统一处理：确保 合作意向_final 列存在
         if '合作意向_final' not in df.columns or df['合作意向_final'].isna().all():
             if not df.empty:
-                intent_raw = df.get('合作意向', pd.Series([''] * len(df))).fillna('')
-                sessions = df.get('参展届次', pd.Series([''] * len(df))).fillna('')
+                intent_raw = self._safe_series(df, '合作意向', '')
+                sessions = self._safe_series(df, '参展届次', '')
                 def _infer_int(s):
                     if pd.isna(s) or str(s).strip() == '':
                         return '意向待定'
