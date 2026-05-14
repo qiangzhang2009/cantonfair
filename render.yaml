@@ -1,7 +1,7 @@
 services:
   - type: web
     name: cantonfair-pro
-    runtime: container
+    runtime: docker
     region: singapore
     plan: free
     dockerfilePath: ./cantonfair_system/Dockerfile
