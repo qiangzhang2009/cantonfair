@@ -5,7 +5,7 @@ services:
     region: singapore
     plan: free
     dockerfilePath: ./cantonfair_system/Dockerfile
-    dockerContext: ./
+    dockerContext: ./cantonfair_system
     healthCheckPath: /_stcore/health
     envVars:
       - key: R2_ACCOUNT_ID
